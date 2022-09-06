@@ -8,7 +8,8 @@ from trakt_scrobbler.player_monitors.monitor import WebInterfaceMon
 class MPCMon(WebInterfaceMon):
     exclude_import = True
     URL = "http://{ip}:{port}/variables.html"
-    PATTERN = re.compile(r'\<p id=\"([a-z]+)\"\>(.*?)\<', re.MULTILINE)
+    CHARSET_PATTERN = re.compile(r'''<\s*meta\s+[^>]*charset\s*=\s*(?:['"]([^'"]+)['"]|([^\s]+))\s*[^>]*>''')
+    VARIABLE_PATTERN = re.compile(r'\<p id=\"([a-z]+)\"\>(.*?)\<', re.MULTILINE)
     CONFIG_TEMPLATE = {
         "ip": confuse.String(default="localhost"),
         "port": confuse.String(default="auto-detect"),
@@ -41,9 +42,17 @@ class MPCMon(WebInterfaceMon):
             raise error
         return {"port": lambda: winreg.QueryValueEx(hkey, key)[0]}
 
+    def _decodeResponseContent(self, response):
+        charsetMatch = next(self.CHARSET_PATTERN.finditer(response.text), None)
+        if (charsetMatch == None):
+            return response.text
+        charset = charsetMatch.group(1) if charsetMatch.group(1) else charsetMatch.group(2)
+        return response.content.decode(charset)
+
     def get_vars(self):
         response = self.sess.get(self.URL)
-        matches = self.PATTERN.findall(response.text)
+        text = self._decodeResponseContent(response)
+        matches = self.VARIABLE_PATTERN.findall(text)
         return dict(matches)
 
     def update_status(self):
