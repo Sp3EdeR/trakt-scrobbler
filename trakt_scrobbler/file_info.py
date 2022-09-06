@@ -4,6 +4,7 @@ from urllib.parse import unquote, urlsplit, urlunsplit
 
 import confuse
 import guessit
+import os
 from trakt_scrobbler import config, logger
 from trakt_scrobbler.mediainfo_remap import apply_remap_rules
 from trakt_scrobbler.utils import RegexPat, cleanup_encoding, is_url
@@ -19,6 +20,9 @@ use_regex = any(regexes.values())
 exclude_patterns: list = cfg["exclude_patterns"].get(confuse.Sequence(RegexPat()))
 
 
+def normPath(path):
+    return path.lower() if os.name == 'nt' else path
+
 def split_whitelist(whitelist: List[str]):
     """Split whitelist into local and remote urls"""
     local, remote = [], []
@@ -28,7 +32,7 @@ def split_whitelist(whitelist: List[str]):
             # ignore result
         except BadMatchPattern:
             # local paths will raise BadMatchPattern error
-            local.append(path)
+            local.append(normPath(path))
         else:
             remote.append(path)
     return local, remote
@@ -46,7 +50,7 @@ def whitelist_local(local_path: str, file_path: str) -> bool:
     and the user also has another directory "path/to/tv shows".
     If the user plays something from the latter, it will still be whitelisted.
     """
-    return file_path.startswith(local_path)
+    return normPath(file_path).startswith(local_path)
 
 
 def whitelist_remote(whitelist_path: str, file_path: str) -> bool:
